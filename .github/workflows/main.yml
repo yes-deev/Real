@@ -1,0 +1,23 @@
+name: Run Neofetch on Ubuntu
+
+on:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  run-neofetch:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Update the package list
+      - name: Update apt package manager
+        run: sudo apt-get update
+
+      # Step 2: Install neofetch
+      - name: Install Neofetch
+        run: sudo apt-get install -y neofetch
+
+      # Step 3: Execute the command to print system info
+      - name: Run Neofetch
+        run: neofetch
+        
