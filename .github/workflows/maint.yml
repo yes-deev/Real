@@ -1,0 +1,28 @@
+name: Run Redroid Setup
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup-redroid:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Update apt package manager
+        run: sudo apt-get update
+
+      # Standard GitHub runners don't have binder modules by default.
+      # This attempts to install the extra kernel modules that include them.
+      - name: Install extra kernel modules
+        run: |
+          sudo apt-get install -y linux-modules-extra-$(uname -r)
+
+      # Load the binder module required for Redroid
+      - name: Load binder kernel module
+        run: |
+          sudo modprobe binder_linux devices="binder,hwbinder,vndbinder"
+          
+      # Verify the module loaded successfully
+      - name: Verify binder modules
+        run: lsmod | grep binder
+        
