@@ -1,0 +1,76 @@
+name: Run Redroid with Scrcpy-Web and Cloudflare Tunnel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy-redroid:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Update apt package manager
+        run: sudo apt-get update
+
+      - name: Install extra kernel modules
+        run: |
+          sudo apt-get install -y linux-modules-extra-$(uname -r)
+
+      # Load the binder module required for Redroid
+      - name: Load binder kernel module
+        run: |
+          sudo modprobe binder_linux devices="binder,hwbinder,vndbinder"
+          
+      # Verify the module loaded successfully
+      - name: Verify binder modules
+        run: lsmod | grep binder
+
+      # Create the docker-compose.yml file dynamically
+      - name: Create docker-compose file
+        run: |
+          cat << 'EOF' > docker-compose.yml
+          version: '3'
+          services:
+            redroid:
+              image: redroid/redroid:12.0.0-latest
+              container_name: redroid
+              privileged: true
+              volumes:
+                - ./data:/data
+              ports:
+                - "5555:5555"
+              command:
+                - androidboot.redroid_fps=60
+
+            scrcpy-web:
+              image: emptysuns/scrcpy-web:v0.1
+              container_name: scrcpy-web
+              ports:
+                - "7000:8000/tcp"
+              depends_on:
+                - redroid
+          EOF
+
+      # Spin up the containers using Compose
+      - name: Start Docker Compose services
+        run: docker compose up -d
+
+      # Give Redroid a few moments to boot up completely before connecting adb
+      - name: Wait for boot
+        run: sleep 10
+
+      # Connect scrcpy-web to the redroid container via ADB (removed -it for GitHub Actions stability)
+      - name: Connect Scrcpy-Web to Redroid
+        run: |
+          docker exec scrcpy-web adb connect redroid:5555
+
+      # Install Cloudflared CLI tool
+      - name: Install Cloudflared
+        run: |
+          curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared.deb
+
+      # Start an ephemeral (free/quick) tunnel on port 7000 and keep it running
+      - name: Start Cloudflare Tunnel
+        run: |
+          echo "Starting Cloudflare tunnel on port 7000..."
+          cloudflared tunnel --url http://localhost:7000
