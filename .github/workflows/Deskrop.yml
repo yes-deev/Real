@@ -1,0 +1,54 @@
+name: Remote XFCE Desktop
+
+on:
+  workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
+
+jobs:
+  desktop-session:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360 # GitHub Action limit (6 hours max)
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install XFCE4, noVNC, and Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xfce4 xfce4-goodies tigervnc-standalone-server novnc websockify dbus-x11
+
+      - name: Download and Install Cloudflared
+        run: |
+          curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared.deb
+          rm cloudflared.deb
+
+      - name: Configure and Start VNC
+        run: |
+          # Set VNC password to 'password123'
+          mkdir -p ~/.vnc
+          echo "password123" | vncpasswd -f > ~/.vnc/passwd
+          chmod 600 ~/.vnc/passwd
+
+          # Configure XFCE startup
+          cat << 'EOF' > ~/.vnc/xstartup
+          #!/bin/sh
+          unset SESSION_MANAGER
+          unset DBUS_SESSION_BUS_ADDRESS
+          exec startxfce4
+          EOF
+          chmod +x ~/.vnc/xstartup
+
+          # Launch VNC server
+          vncserver :1 -geometry 1280x720 -depth 24
+
+      - name: Start noVNC Bridge
+        run: |
+          websockify --web /usr/share/novnc/ 6080 localhost:5901 &
+
+      - name: Expose Desktop via Cloudflare Tunnel
+        run: |
+          echo "=========================================================="
+          echo "STARTING TUNNEL... LOOK FOR THE '.trycloudflare.com' LINK BELOW"
+          echo "=========================================================="
+          cloudflared tunnel --url http://localhost:6080
